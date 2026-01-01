@@ -68,6 +68,7 @@ Examples (illustrative):
 ```
 
 - `Pull Request.md` is deprecated. Always use `PR.md`.
+- Once a PR is open, **do not rewrite history** on that feature branch (no rebases, no force-pushes) unless explicitly instructed.
 
 ## Integration Changelog
 
