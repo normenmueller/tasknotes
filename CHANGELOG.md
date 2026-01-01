@@ -14,4 +14,15 @@ Changes:
 - Normalizes dependency entries and expands resolution candidates for more reliable linking.
 
 Tests:
-- Added unit coverage for angle-bracket link parsing and project display name resolution in `linkUtils`.
+- Added unit coverage for angle‑bracket link parsing and project display name resolution in `linkUtils`.
+
+### fix-prio-label-mapping
+
+Summary:
+- Ensures Kanban column headers use configured priority labels when grouped by priority, instead of raw values.
+
+Changes:
+- Kanban column headers now map priority values to their configured labels when grouped by priority (including swimlanes).
+
+Tests:
+- Not run (documentation-only change).
