@@ -11,6 +11,7 @@ Changes:
 - Mark task cards as status-hidden only when status is grouped (hideStatusIndicator).
 - Subtasks inherit that state and replace the status dot with a thin right-edge stripe.
 - Add styling for the subtask status stripe.
+- Subtask rendering now receives the parent view’s status visibility settings.
 
 Tests:
 - Not run (tested manually in Obsidian).
