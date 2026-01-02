@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### feat-subtask-status-strip
+
+Summary:
+- Subtasks show a subtle status-colored stripe (instead of a full dot) when the status property is hidden.
+
+Changes:
+- Mark task cards as status-hidden when the status property is not shown.
+- Subtasks inherit that state and replace the status dot with a thin right-edge stripe.
+- Add styling for the subtask status stripe.
+
+Tests:
+- Not run (tested manually in Obsidian).
+
 ### fix-task-prop-based-ident
 
 Summary:
