@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### feat-note-widget-status-strip
+
+Summary:
+- Note widget cards render status as a subtle right-edge strip; status icons remain visible when configured.
+
+Changes:
+- Filter `status` from note widget visible properties to avoid showing dots by default.
+- Add a note-widget card mode that renders a status strip for project cards and subtasks.
+- Preserve status icons in the note widget (icons override the strip).
+
+Tests:
+- Not run (pending Obsidian verification).
+
 ### feat-subtask-status-strip
 
 Summary:
