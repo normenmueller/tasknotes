@@ -40,6 +40,8 @@ export interface TaskCardOptions {
 	layout?: "default" | "compact" | "inline";
 	/** When true, hide status indicator (e.g., when Kanban is grouped by status) */
 	hideStatusIndicator?: boolean;
+	/** True when rendered inside the note widget */
+	noteWidget?: boolean;
 }
 
 export const DEFAULT_TASK_CARD_OPTIONS: TaskCardOptions = {
@@ -406,6 +408,37 @@ function getDefaultVisibleProperties(plugin: TaskNotesPlugin): string[] {
 	];
 
 	return convertInternalToUserProperties(internalDefaults, plugin);
+}
+
+function resolveVisibleProperties(
+	visibleProperties: string[] | undefined,
+	plugin: TaskNotesPlugin
+): string[] {
+	if (visibleProperties && visibleProperties.length > 0) {
+		return visibleProperties;
+	}
+
+	if (plugin.settings.defaultVisibleProperties) {
+		return convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin);
+	}
+
+	return getDefaultVisibleProperties(plugin);
+}
+
+function getSubtaskVisibleProperties(card: HTMLElement, plugin: TaskNotesPlugin): string[] {
+	const raw = card?.dataset?.visibleProperties;
+	if (raw) {
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				return parsed;
+			}
+		} catch (error) {
+			console.warn("Failed to parse visibleProperties from card dataset", error);
+		}
+	}
+
+	return resolveVisibleProperties(undefined, plugin);
 }
 
 /**
@@ -1342,6 +1375,10 @@ export function createTaskCard(
 	// Main container with BEM class structure
 	// Use span for inline layout to ensure proper inline flow in CodeMirror
 	const card = document.createElement(layout === "inline" ? "span" : "div");
+	if (opts.noteWidget) {
+		card.classList.add("task-card--note-widget");
+		card.dataset.visibleProperties = JSON.stringify(visibleProperties || []);
+	}
 
 	// Store task path for circular reference detection
 	(card as any)._taskPath = task.path;
@@ -1420,16 +1457,19 @@ export function createTaskCard(
 
 	// Status indicator dot (conditional based on visible properties and options)
 	let statusDot: HTMLElement | null = null;
+	const statusHasIcon = !!statusConfig?.icon;
 	const shouldShowStatus =
 		!opts.hideStatusIndicator &&
-		(!visibleProperties ||
-			visibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)));
+		((!visibleProperties ||
+			visibleProperties.some((prop) => isPropertyForField(prop, "status", plugin))) ||
+			(!!opts.noteWidget && statusHasIcon));
 	if (shouldShowStatus) {
 		statusDot = mainRow.createEl("span", { cls: "task-card__status-dot" });
 		if (statusConfig) {
 			statusDot.style.borderColor = statusConfig.color;
 			// If status has an icon configured, render it instead of colored dot
 			if (statusConfig.icon) {
+				card.classList.add("task-card--status-icon");
 				statusDot.addClass("task-card__status-dot--icon");
 				setIcon(statusDot, statusConfig.icon);
 			}
@@ -1757,6 +1797,10 @@ export function updateTaskCard(
 	options: Partial<TaskCardOptions> = {}
 ): void {
 	const opts = { ...DEFAULT_TASK_CARD_OPTIONS, ...options };
+	if (opts.noteWidget) {
+		element.classList.add("task-card--note-widget");
+		element.dataset.visibleProperties = JSON.stringify(visibleProperties || []);
+	}
 	// Use fresh UTC-anchored "today" if no targetDate provided
 	// This ensures recurring tasks show correct completion status for the current day
 	const targetDate = opts.targetDate || (() => {
@@ -1839,18 +1883,37 @@ export function updateTaskCard(
 		!visibleProperties ||
 		visibleProperties.some((prop) => isPropertyForField(prop, "status", plugin));
 	const statusDot = element.querySelector(".task-card__status-dot") as HTMLElement;
+	const statusHasIcon = !!statusConfig?.icon;
+	const shouldShowStatusWithIcon =
+		!opts.hideStatusIndicator &&
+		(shouldShowStatus || (!!opts.noteWidget && statusHasIcon));
 
-	if (shouldShowStatus) {
+	if (shouldShowStatusWithIcon) {
 		if (statusDot) {
 			// Update existing dot
 			if (statusConfig) {
 				statusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					element.classList.add("task-card--status-icon");
+					statusDot.addClass("task-card__status-dot--icon");
+					statusDot.empty();
+					setIcon(statusDot, statusConfig.icon);
+				} else {
+					element.classList.remove("task-card--status-icon");
+					statusDot.removeClass("task-card__status-dot--icon");
+					statusDot.empty();
+				}
 			}
 		} else if (mainRow) {
 			// Add missing dot
 			const newStatusDot = mainRow.createEl("span", { cls: "task-card__status-dot" });
 			if (statusConfig) {
 				newStatusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					element.classList.add("task-card--status-icon");
+					newStatusDot.addClass("task-card__status-dot--icon");
+					setIcon(newStatusDot, statusConfig.icon);
+				}
 			}
 
 			// Add click handler to cycle through statuses
@@ -1941,6 +2004,7 @@ export function updateTaskCard(
 	} else if (statusDot) {
 		// Remove dot if it shouldn't be visible
 		statusDot.remove();
+		element.classList.remove("task-card--status-icon");
 	}
 
 	// Update priority indicator (conditional based on visible properties)
@@ -2439,7 +2503,19 @@ export async function toggleSubtasks(
 						continue;
 					}
 
-					const subtaskCard = createTaskCard(subtask, plugin, undefined);
+					const isNoteWidget = card.classList.contains("task-card--note-widget");
+					const subtaskVisibleProps = isNoteWidget
+						? getSubtaskVisibleProperties(card, plugin)
+						: undefined;
+					const subtaskOptions: Partial<TaskCardOptions> = isNoteWidget
+						? { noteWidget: true }
+						: {};
+					const subtaskCard = createTaskCard(
+						subtask,
+						plugin,
+						subtaskVisibleProps,
+						subtaskOptions
+					);
 
 					// Add subtask modifier class
 					subtaskCard.classList.add("task-card--subtask");
