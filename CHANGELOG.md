@@ -26,3 +26,16 @@ Changes:
 
 Tests:
 - Not run (documentation-only change).
+
+### feat/ui-tweaks
+
+Summary:
+- Improves task card affordances with pointer cursors on clickable icons and a consistently visible project chevron.
+
+Changes:
+- Add pointer cursor styling for all clickable task card elements (status, priority, indicators, chevron, blocking toggle, context menu, dates).
+- Ensure project chevrons are always visible on the right and ordered after other badge icons.
+- Mark project task cards with a dedicated class for chevron styling.
+
+Tests:
+- Not run (UI-only change).
