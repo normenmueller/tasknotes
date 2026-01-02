@@ -40,6 +40,10 @@ export interface TaskCardOptions {
 	layout?: "default" | "compact" | "inline";
 	/** When true, hide status indicator (e.g., when Kanban is grouped by status) */
 	hideStatusIndicator?: boolean;
+	/** True when the current view is grouped by status */
+	groupedByStatus?: boolean;
+	/** True when rendered inside the note widget */
+	noteWidget?: boolean;
 }
 
 export const DEFAULT_TASK_CARD_OPTIONS: TaskCardOptions = {
@@ -194,6 +198,10 @@ function updateCardCompletionState(
 ): void {
 	const cardClasses = ["task-card"];
 	const isProject = plugin.projectSubtasksService?.isTaskUsedAsProjectSync(task.path) || false;
+	const isNoteWidget = card.classList.contains("task-card--note-widget");
+	const statusWasHidden = card.classList.contains("task-card--status-hidden");
+	const statusConfig = plugin.statusManager.getStatusConfig(effectiveStatus);
+	const hasStatusIcon = !!statusConfig?.icon;
 	if (isCompleted) cardClasses.push("task-card--completed");
 	if (task.archived) cardClasses.push("task-card--archived");
 	if (plugin.getActiveTimeSession(task)) cardClasses.push("task-card--actively-tracked");
@@ -202,6 +210,9 @@ function updateCardCompletionState(
 	if (effectiveStatus) cardClasses.push(`task-card--status-${effectiveStatus}`);
 	if (plugin.settings?.subtaskChevronPosition === "left") cardClasses.push("task-card--chevron-left");
 	if (isProject) cardClasses.push("task-card--project");
+	if (isNoteWidget) cardClasses.push("task-card--note-widget");
+	if (isNoteWidget && hasStatusIcon) cardClasses.push("task-card--status-icon");
+	if (statusWasHidden) cardClasses.push("task-card--status-hidden");
 
 	card.className = cardClasses.join(" ");
 	card.dataset.status = effectiveStatus;
@@ -408,6 +419,37 @@ function getDefaultVisibleProperties(plugin: TaskNotesPlugin): string[] {
 	];
 
 	return convertInternalToUserProperties(internalDefaults, plugin);
+}
+
+function resolveVisibleProperties(
+	visibleProperties: string[] | undefined,
+	plugin: TaskNotesPlugin
+): string[] {
+	if (visibleProperties && visibleProperties.length > 0) {
+		return visibleProperties;
+	}
+
+	if (plugin.settings.defaultVisibleProperties) {
+		return convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin);
+	}
+
+	return getDefaultVisibleProperties(plugin);
+}
+
+function getSubtaskVisibleProperties(card: HTMLElement, plugin: TaskNotesPlugin): string[] {
+	const raw = card?.dataset?.visibleProperties;
+	if (raw) {
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				return parsed;
+			}
+		} catch (error) {
+			console.warn("Failed to parse visibleProperties from card dataset", error);
+		}
+	}
+
+	return resolveVisibleProperties(undefined, plugin);
 }
 
 /**
@@ -1332,6 +1374,7 @@ export function createTaskCard(
 		const todayLocal = new Date();
 		return new Date(Date.UTC(todayLocal.getFullYear(), todayLocal.getMonth(), todayLocal.getDate()));
 	})();
+	const resolvedVisibleProperties = resolveVisibleProperties(visibleProperties, plugin);
 
 	// Determine effective status for recurring tasks
 	const effectiveStatus = task.recurrence
@@ -1344,6 +1387,8 @@ export function createTaskCard(
 	// Main container with BEM class structure
 	// Use span for inline layout to ensure proper inline flow in CodeMirror
 	const card = document.createElement(layout === "inline" ? "span" : "div");
+	card.dataset.visibleProperties = JSON.stringify(resolvedVisibleProperties);
+	(card as any)._taskCardOptions = opts;
 
 	// Store task path for circular reference detection
 	(card as any)._taskPath = task.path;
@@ -1398,6 +1443,9 @@ export function createTaskCard(
 	}
 
 	card.className = cardClasses.join(" ");
+	if (opts.noteWidget) {
+		card.classList.add("task-card--note-widget");
+	}
 	card.dataset.taskPath = task.path;
 	card.dataset.key = task.path; // For DOMReconciler compatibility
 	card.dataset.status = effectiveStatus;
@@ -1426,16 +1474,23 @@ export function createTaskCard(
 
 	// Status indicator dot (conditional based on visible properties and options)
 	let statusDot: HTMLElement | null = null;
+	const statusHasIcon = !!statusConfig?.icon;
 	const shouldShowStatus =
 		!opts.hideStatusIndicator &&
-		(!visibleProperties ||
-			visibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)));
+		(resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)) ||
+			(!!opts.noteWidget && statusHasIcon));
+	if (!shouldShowStatus && opts.groupedByStatus) {
+		card.classList.add("task-card--status-hidden");
+	}
 	if (shouldShowStatus) {
 		statusDot = mainRow.createEl("span", { cls: "task-card__status-dot" });
 		if (statusConfig) {
 			statusDot.style.borderColor = statusConfig.color;
 			// If status has an icon configured, render it instead of colored dot
 			if (statusConfig.icon) {
+				if (opts.noteWidget) {
+					card.classList.add("task-card--status-icon");
+				}
 				statusDot.addClass("task-card__status-dot--icon");
 				setIcon(statusDot, statusConfig.icon);
 			}
@@ -1454,8 +1509,7 @@ export function createTaskCard(
 
 	// Priority indicator dot (conditional based on visible properties)
 	const shouldShowPriority =
-		!visibleProperties ||
-		visibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
+		resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
 	if (task.priority && priorityConfig && shouldShowPriority) {
 		const priorityDot = mainRow.createEl("span", {
 			cls: "task-card__priority-dot",
@@ -1588,11 +1642,7 @@ export function createTaskCard(
 	const metadataElements: HTMLElement[] = [];
 
 	// Get properties to display
-	const propertiesToShow =
-		visibleProperties ||
-		(plugin.settings.defaultVisibleProperties
-			? convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin)
-			: getDefaultVisibleProperties(plugin));
+	const propertiesToShow = resolvedVisibleProperties;
 
 	// Render each visible property
 	for (const propertyId of propertiesToShow) {
@@ -1770,6 +1820,8 @@ export function updateTaskCard(
 		const todayLocal = new Date();
 		return new Date(Date.UTC(todayLocal.getFullYear(), todayLocal.getMonth(), todayLocal.getDate()));
 	})();
+	const resolvedVisibleProperties = resolveVisibleProperties(visibleProperties, plugin);
+	const isNoteWidget = opts.noteWidget || element.classList.contains("task-card--note-widget");
 
 	// Update effective status
 	const effectiveStatus = task.recurrence
@@ -1812,6 +1864,11 @@ export function updateTaskCard(
 	}
 
 	element.className = cardClasses.join(" ");
+	element.dataset.visibleProperties = JSON.stringify(resolvedVisibleProperties);
+	(element as any)._taskCardOptions = opts;
+	if (isNoteWidget) {
+		element.classList.add("task-card--note-widget");
+	}
 	element.dataset.status = effectiveStatus;
 
 	// Get the main row container
@@ -1843,8 +1900,9 @@ export function updateTaskCard(
 
 	// Update status dot (conditional based on visible properties)
 	const shouldShowStatus =
-		!visibleProperties ||
-		visibleProperties.some((prop) => isPropertyForField(prop, "status", plugin));
+		!opts.hideStatusIndicator &&
+		(resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)) ||
+			(isNoteWidget && !!statusConfig?.icon));
 	const statusDot = element.querySelector(".task-card__status-dot") as HTMLElement;
 
 	if (shouldShowStatus) {
@@ -1852,12 +1910,24 @@ export function updateTaskCard(
 			// Update existing dot
 			if (statusConfig) {
 				statusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					statusDot.addClass("task-card__status-dot--icon");
+					statusDot.empty();
+					setIcon(statusDot, statusConfig.icon);
+				} else {
+					statusDot.removeClass("task-card__status-dot--icon");
+					statusDot.empty();
+				}
 			}
 		} else if (mainRow) {
 			// Add missing dot
 			const newStatusDot = mainRow.createEl("span", { cls: "task-card__status-dot" });
 			if (statusConfig) {
 				newStatusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					newStatusDot.addClass("task-card__status-dot--icon");
+					setIcon(newStatusDot, statusConfig.icon);
+				}
 			}
 
 			// Add click handler to cycle through statuses
@@ -1953,11 +2023,19 @@ export function updateTaskCard(
 		// Remove dot if it shouldn't be visible
 		statusDot.remove();
 	}
+	element.classList.toggle(
+		"task-card--status-hidden",
+		!shouldShowStatus && !!opts.groupedByStatus
+	);
+	if (isNoteWidget && statusConfig?.icon) {
+		element.classList.add("task-card--status-icon");
+	} else {
+		element.classList.remove("task-card--status-icon");
+	}
 
 	// Update priority indicator (conditional based on visible properties)
 	const shouldShowPriority =
-		!visibleProperties ||
-		visibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
+		resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
 	const existingPriorityDot = element.querySelector(".task-card__priority-dot") as HTMLElement;
 
 	if (shouldShowPriority && task.priority && priorityConfig) {
@@ -2168,11 +2246,7 @@ export function updateTaskCard(
 		const metadataElements: HTMLElement[] = [];
 
 		// Get properties to display
-		const propertiesToShow =
-			visibleProperties ||
-			(plugin.settings.defaultVisibleProperties
-				? convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin)
-				: getDefaultVisibleProperties(plugin));
+		const propertiesToShow = resolvedVisibleProperties;
 
 		for (const propertyId of propertiesToShow) {
 			// Skip status and priority as they're rendered separately
@@ -2420,6 +2494,19 @@ export async function toggleSubtasks(
 
 				// Sort subtasks
 				const sortedSubtasks = plugin.projectSubtasksService.sortTasks(subtasks);
+				const parentOptions = (card as any)._taskCardOptions as Partial<TaskCardOptions> | undefined;
+				const parentVisibleProperties = getSubtaskVisibleProperties(card, plugin);
+				const isNoteWidget = card.classList.contains("task-card--note-widget");
+				const subtaskOptions = parentOptions
+					? {
+							...parentOptions,
+							hideStatusIndicator: parentOptions?.hideStatusIndicator,
+							groupedByStatus: parentOptions?.groupedByStatus,
+							noteWidget: parentOptions?.noteWidget || isNoteWidget,
+						}
+					: isNoteWidget
+						? { noteWidget: true }
+						: {};
 
 				// Build parent chain by traversing up the DOM hierarchy
 				const buildParentChain = (element: HTMLElement): string[] => {
@@ -2451,10 +2538,13 @@ export async function toggleSubtasks(
 						continue;
 					}
 
-					const subtaskCard = createTaskCard(subtask, plugin, undefined);
+					const subtaskCard = createTaskCard(subtask, plugin, parentVisibleProperties, subtaskOptions);
 
 					// Add subtask modifier class
 					subtaskCard.classList.add("task-card--subtask");
+					if (card.classList.contains("task-card--status-hidden")) {
+						subtaskCard.classList.add("task-card--status-hidden");
+					}
 
 					subtasksContainer.appendChild(subtaskCard);
 				}
