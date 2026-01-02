@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### fix-task-prop-based-ident
+
+Summary:
+- Prevents property-based task identification from mutating tags; tags change only when explicitly set.
+
+Changes:
+- Only add the task tag when tag-based identification is enabled.
+- In property-based mode, preserve user/default tags without filtering.
+- Only write `frontmatter.tags` during updates when tags are explicitly provided.
+- Fixes callumalpass/tasknotes#1391.
+
+Tests:
+- Not run (tested manually in Obsidian).
+
 ### feat/ui-tweaks
 
 Summary:
