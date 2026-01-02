@@ -42,6 +42,8 @@ export interface TaskCardOptions {
 	hideStatusIndicator?: boolean;
 	/** True when the current view is grouped by status */
 	groupedByStatus?: boolean;
+	/** True when rendered inside the note widget */
+	noteWidget?: boolean;
 }
 
 export const DEFAULT_TASK_CARD_OPTIONS: TaskCardOptions = {
@@ -1435,6 +1437,9 @@ export function createTaskCard(
 	}
 
 	card.className = cardClasses.join(" ");
+	if (opts.noteWidget) {
+		card.classList.add("task-card--note-widget");
+	}
 	card.dataset.taskPath = task.path;
 	card.dataset.key = task.path; // For DOMReconciler compatibility
 	card.dataset.status = effectiveStatus;
@@ -1463,10 +1468,12 @@ export function createTaskCard(
 
 	// Status indicator dot (conditional based on visible properties and options)
 	let statusDot: HTMLElement | null = null;
+	const statusHasIcon = !!statusConfig?.icon;
 	const shouldShowStatus =
 		!opts.hideStatusIndicator &&
-		(!resolvedVisibleProperties ||
-			resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)));
+		((!resolvedVisibleProperties ||
+			resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin))) ||
+			(!!opts.noteWidget && statusHasIcon));
 	if (!shouldShowStatus && opts.groupedByStatus) {
 		card.classList.add("task-card--status-hidden");
 	}
@@ -1476,6 +1483,7 @@ export function createTaskCard(
 			statusDot.style.borderColor = statusConfig.color;
 			// If status has an icon configured, render it instead of colored dot
 			if (statusConfig.icon) {
+				card.classList.add("task-card--status-icon");
 				statusDot.addClass("task-card__status-dot--icon");
 				setIcon(statusDot, statusConfig.icon);
 			}
@@ -1854,6 +1862,9 @@ export function updateTaskCard(
 	}
 
 	element.className = cardClasses.join(" ");
+	if (opts.noteWidget) {
+		element.classList.add("task-card--note-widget");
+	}
 	element.dataset.status = effectiveStatus;
 	element.dataset.visibleProperties = JSON.stringify(resolvedVisibleProperties);
 
@@ -1890,22 +1901,41 @@ export function updateTaskCard(
 		(!resolvedVisibleProperties ||
 			resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)));
 	const statusDot = element.querySelector(".task-card__status-dot") as HTMLElement;
+	const statusHasIcon = !!statusConfig?.icon;
+	const shouldShowStatusWithIcon =
+		!opts.hideStatusIndicator &&
+		(shouldShowStatus || (!!opts.noteWidget && statusHasIcon));
 	element.classList.toggle(
 		"task-card--status-hidden",
 		!shouldShowStatus && !!opts.groupedByStatus
 	);
 
-	if (shouldShowStatus) {
+	if (shouldShowStatusWithIcon) {
 		if (statusDot) {
 			// Update existing dot
 			if (statusConfig) {
 				statusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					element.classList.add("task-card--status-icon");
+					statusDot.addClass("task-card__status-dot--icon");
+					statusDot.empty();
+					setIcon(statusDot, statusConfig.icon);
+				} else {
+					element.classList.remove("task-card--status-icon");
+					statusDot.removeClass("task-card__status-dot--icon");
+					statusDot.empty();
+				}
 			}
 		} else if (mainRow) {
 			// Add missing dot
 			const newStatusDot = mainRow.createEl("span", { cls: "task-card__status-dot" });
 			if (statusConfig) {
 				newStatusDot.style.borderColor = statusConfig.color;
+				if (statusConfig.icon) {
+					element.classList.add("task-card--status-icon");
+					newStatusDot.addClass("task-card__status-dot--icon");
+					setIcon(newStatusDot, statusConfig.icon);
+				}
 			}
 
 			// Add click handler to cycle through statuses
@@ -2000,6 +2030,7 @@ export function updateTaskCard(
 	} else if (statusDot) {
 		// Remove dot if it shouldn't be visible
 		statusDot.remove();
+		element.classList.remove("task-card--status-icon");
 	}
 
 	// Update priority indicator (conditional based on visible properties)
@@ -2506,6 +2537,7 @@ export async function toggleSubtasks(
 						targetDate: parentOptions?.targetDate,
 						hideStatusIndicator: parentOptions?.hideStatusIndicator,
 						groupedByStatus: parentOptions?.groupedByStatus,
+						noteWidget: parentOptions?.noteWidget,
 					};
 					const subtaskCard = createTaskCard(
 						subtask,

@@ -98,11 +98,16 @@ function createTaskCardWidget(
 
 	// Get the visible properties from settings and convert internal names to user-configured names
 	const visibleProperties = plugin.settings.defaultVisibleProperties
-		? convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin)
+		? convertInternalToUserProperties(
+				plugin.settings.defaultVisibleProperties.filter((prop) => prop !== "status"),
+				plugin
+			)
 		: undefined;
 
 	// Create the task card
-	const taskCard = createTaskCard(task, plugin, visibleProperties);
+	const taskCard = createTaskCard(task, plugin, visibleProperties, {
+		noteWidget: true,
+	});
 
 	// Add specific styling for the note widget
 	taskCard.classList.add("task-card-note-widget__card");
