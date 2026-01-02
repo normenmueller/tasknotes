@@ -193,6 +193,7 @@ function updateCardCompletionState(
 	effectiveStatus: string
 ): void {
 	const cardClasses = ["task-card"];
+	const isProject = plugin.projectSubtasksService?.isTaskUsedAsProjectSync(task.path) || false;
 	if (isCompleted) cardClasses.push("task-card--completed");
 	if (task.archived) cardClasses.push("task-card--archived");
 	if (plugin.getActiveTimeSession(task)) cardClasses.push("task-card--actively-tracked");
@@ -200,6 +201,7 @@ function updateCardCompletionState(
 	if (task.priority) cardClasses.push(`task-card--priority-${task.priority}`);
 	if (effectiveStatus) cardClasses.push(`task-card--status-${effectiveStatus}`);
 	if (plugin.settings?.subtaskChevronPosition === "left") cardClasses.push("task-card--chevron-left");
+	if (isProject) cardClasses.push("task-card--project");
 
 	card.className = cardClasses.join(" ");
 	card.dataset.status = effectiveStatus;
@@ -1355,6 +1357,7 @@ export function createTaskCard(
 		? task.skipped_instances?.includes(formatDateForStorage(targetDate)) || false // Direct check of skipped_instances
 		: false; // Only recurring tasks can have skipped instances
 	const isRecurring = !!task.recurrence;
+	const isProject = plugin.projectSubtasksService?.isTaskUsedAsProjectSync(task.path) || false;
 
 	// Build BEM class names
 	const cardClasses = ["task-card"];
@@ -1384,6 +1387,9 @@ export function createTaskCard(
 	// Chevron position preference
 	if (plugin.settings?.subtaskChevronPosition === "left") {
 		cardClasses.push("task-card--chevron-left");
+	}
+	if (isProject) {
+		cardClasses.push("task-card--project");
 	}
 
 	// Add project modifier (for issue #355)
@@ -1495,6 +1501,7 @@ export function createTaskCard(
 		// Project indicator
 		const isProject = plugin.projectSubtasksService.isTaskUsedAsProjectSync(task.path);
 		if (isProject) {
+			card.classList.add("task-card--project");
 			createBadgeIndicator({
 				container: badgesContainer,
 				className: "task-card__project-indicator",
@@ -1889,6 +1896,10 @@ export function updateTaskCard(
 						if (task.priority) cardClasses.push(`task-card--priority-${task.priority}`);
 						if (newEffectiveStatus)
 							cardClasses.push(`task-card--status-${newEffectiveStatus}`);
+						if (plugin.settings?.subtaskChevronPosition === "left")
+							cardClasses.push("task-card--chevron-left");
+						if (plugin.projectSubtasksService?.isTaskUsedAsProjectSync(task.path))
+							cardClasses.push("task-card--project");
 
 						element.className = cardClasses.join(" ");
 						element.dataset.status = newEffectiveStatus;
@@ -2050,6 +2061,7 @@ export function updateTaskCard(
 	plugin.projectSubtasksService
 		.isTaskUsedAsProject(task.path)
 		.then((isProject: boolean) => {
+			element.classList.toggle("task-card--project", isProject);
 			// Remove old placeholders if they exist
 			element.querySelector(".task-card__project-indicator-placeholder")?.remove();
 			element.querySelector(".task-card__chevron-placeholder")?.remove();
