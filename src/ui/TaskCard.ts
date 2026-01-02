@@ -198,6 +198,10 @@ function updateCardCompletionState(
 ): void {
 	const cardClasses = ["task-card"];
 	const isProject = plugin.projectSubtasksService?.isTaskUsedAsProjectSync(task.path) || false;
+	const isNoteWidget = card.classList.contains("task-card--note-widget");
+	const statusWasHidden = card.classList.contains("task-card--status-hidden");
+	const statusConfig = plugin.statusManager.getStatusConfig(effectiveStatus);
+	const hasStatusIcon = !!statusConfig?.icon;
 	if (isCompleted) cardClasses.push("task-card--completed");
 	if (task.archived) cardClasses.push("task-card--archived");
 	if (plugin.getActiveTimeSession(task)) cardClasses.push("task-card--actively-tracked");
@@ -206,6 +210,9 @@ function updateCardCompletionState(
 	if (effectiveStatus) cardClasses.push(`task-card--status-${effectiveStatus}`);
 	if (plugin.settings?.subtaskChevronPosition === "left") cardClasses.push("task-card--chevron-left");
 	if (isProject) cardClasses.push("task-card--project");
+	if (isNoteWidget) cardClasses.push("task-card--note-widget");
+	if (isNoteWidget && hasStatusIcon) cardClasses.push("task-card--status-icon");
+	if (statusWasHidden) cardClasses.push("task-card--status-hidden");
 
 	card.className = cardClasses.join(" ");
 	card.dataset.status = effectiveStatus;
@@ -707,12 +714,11 @@ const PROPERTY_RENDERERS: Record<string, PropertyRenderer> = {
 			renderScheduledDateProperty(element, value, task, plugin);
 		}
 	},
-	projects: (element, value, task, plugin) => {
+	projects: (element, value, _, plugin) => {
 		if (Array.isArray(value)) {
 			const linkServices: LinkServices = {
 				metadataCache: plugin.app.metadataCache,
 				workspace: plugin.app.workspace,
-				sourcePath: task.path,
 			};
 			renderProjectLinks(element, value as string[], linkServices);
 		}
@@ -1471,8 +1477,7 @@ export function createTaskCard(
 	const statusHasIcon = !!statusConfig?.icon;
 	const shouldShowStatus =
 		!opts.hideStatusIndicator &&
-		((!resolvedVisibleProperties ||
-			resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin))) ||
+		(resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)) ||
 			(!!opts.noteWidget && statusHasIcon));
 	if (!shouldShowStatus && opts.groupedByStatus) {
 		card.classList.add("task-card--status-hidden");
@@ -1483,7 +1488,9 @@ export function createTaskCard(
 			statusDot.style.borderColor = statusConfig.color;
 			// If status has an icon configured, render it instead of colored dot
 			if (statusConfig.icon) {
-				card.classList.add("task-card--status-icon");
+				if (opts.noteWidget) {
+					card.classList.add("task-card--status-icon");
+				}
 				statusDot.addClass("task-card__status-dot--icon");
 				setIcon(statusDot, statusConfig.icon);
 			}
@@ -1502,7 +1509,6 @@ export function createTaskCard(
 
 	// Priority indicator dot (conditional based on visible properties)
 	const shouldShowPriority =
-		!resolvedVisibleProperties ||
 		resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
 	if (task.priority && priorityConfig && shouldShowPriority) {
 		const priorityDot = mainRow.createEl("span", {
@@ -1636,11 +1642,7 @@ export function createTaskCard(
 	const metadataElements: HTMLElement[] = [];
 
 	// Get properties to display
-	const propertiesToShow =
-		visibleProperties ||
-		(plugin.settings.defaultVisibleProperties
-			? convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin)
-			: getDefaultVisibleProperties(plugin));
+	const propertiesToShow = resolvedVisibleProperties;
 
 	// Render each visible property
 	for (const propertyId of propertiesToShow) {
@@ -1812,14 +1814,14 @@ export function updateTaskCard(
 	options: Partial<TaskCardOptions> = {}
 ): void {
 	const opts = { ...DEFAULT_TASK_CARD_OPTIONS, ...options };
-	(element as any)._taskCardOptions = opts;
-	const resolvedVisibleProperties = resolveVisibleProperties(visibleProperties, plugin);
 	// Use fresh UTC-anchored "today" if no targetDate provided
 	// This ensures recurring tasks show correct completion status for the current day
 	const targetDate = opts.targetDate || (() => {
 		const todayLocal = new Date();
 		return new Date(Date.UTC(todayLocal.getFullYear(), todayLocal.getMonth(), todayLocal.getDate()));
 	})();
+	const resolvedVisibleProperties = resolveVisibleProperties(visibleProperties, plugin);
+	const isNoteWidget = opts.noteWidget || element.classList.contains("task-card--note-widget");
 
 	// Update effective status
 	const effectiveStatus = task.recurrence
@@ -1862,11 +1864,12 @@ export function updateTaskCard(
 	}
 
 	element.className = cardClasses.join(" ");
-	if (opts.noteWidget) {
+	element.dataset.visibleProperties = JSON.stringify(resolvedVisibleProperties);
+	(element as any)._taskCardOptions = opts;
+	if (isNoteWidget) {
 		element.classList.add("task-card--note-widget");
 	}
 	element.dataset.status = effectiveStatus;
-	element.dataset.visibleProperties = JSON.stringify(resolvedVisibleProperties);
 
 	// Get the main row container
 	const mainRow = element.querySelector(".task-card__main-row") as HTMLElement;
@@ -1898,30 +1901,20 @@ export function updateTaskCard(
 	// Update status dot (conditional based on visible properties)
 	const shouldShowStatus =
 		!opts.hideStatusIndicator &&
-		(!resolvedVisibleProperties ||
-			resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)));
+		(resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "status", plugin)) ||
+			(isNoteWidget && !!statusConfig?.icon));
 	const statusDot = element.querySelector(".task-card__status-dot") as HTMLElement;
-	const statusHasIcon = !!statusConfig?.icon;
-	const shouldShowStatusWithIcon =
-		!opts.hideStatusIndicator &&
-		(shouldShowStatus || (!!opts.noteWidget && statusHasIcon));
-	element.classList.toggle(
-		"task-card--status-hidden",
-		!shouldShowStatus && !!opts.groupedByStatus
-	);
 
-	if (shouldShowStatusWithIcon) {
+	if (shouldShowStatus) {
 		if (statusDot) {
 			// Update existing dot
 			if (statusConfig) {
 				statusDot.style.borderColor = statusConfig.color;
 				if (statusConfig.icon) {
-					element.classList.add("task-card--status-icon");
 					statusDot.addClass("task-card__status-dot--icon");
 					statusDot.empty();
 					setIcon(statusDot, statusConfig.icon);
 				} else {
-					element.classList.remove("task-card--status-icon");
 					statusDot.removeClass("task-card__status-dot--icon");
 					statusDot.empty();
 				}
@@ -1932,7 +1925,6 @@ export function updateTaskCard(
 			if (statusConfig) {
 				newStatusDot.style.borderColor = statusConfig.color;
 				if (statusConfig.icon) {
-					element.classList.add("task-card--status-icon");
 					newStatusDot.addClass("task-card__status-dot--icon");
 					setIcon(newStatusDot, statusConfig.icon);
 				}
@@ -2030,12 +2022,19 @@ export function updateTaskCard(
 	} else if (statusDot) {
 		// Remove dot if it shouldn't be visible
 		statusDot.remove();
+	}
+	element.classList.toggle(
+		"task-card--status-hidden",
+		!shouldShowStatus && !!opts.groupedByStatus
+	);
+	if (isNoteWidget && statusConfig?.icon) {
+		element.classList.add("task-card--status-icon");
+	} else {
 		element.classList.remove("task-card--status-icon");
 	}
 
 	// Update priority indicator (conditional based on visible properties)
 	const shouldShowPriority =
-		!resolvedVisibleProperties ||
 		resolvedVisibleProperties.some((prop) => isPropertyForField(prop, "priority", plugin));
 	const existingPriorityDot = element.querySelector(".task-card__priority-dot") as HTMLElement;
 
@@ -2247,11 +2246,7 @@ export function updateTaskCard(
 		const metadataElements: HTMLElement[] = [];
 
 		// Get properties to display
-		const propertiesToShow =
-			visibleProperties ||
-			(plugin.settings.defaultVisibleProperties
-				? convertInternalToUserProperties(plugin.settings.defaultVisibleProperties, plugin)
-				: getDefaultVisibleProperties(plugin));
+		const propertiesToShow = resolvedVisibleProperties;
 
 		for (const propertyId of propertiesToShow) {
 			// Skip status and priority as they're rendered separately
@@ -2499,6 +2494,19 @@ export async function toggleSubtasks(
 
 				// Sort subtasks
 				const sortedSubtasks = plugin.projectSubtasksService.sortTasks(subtasks);
+				const parentOptions = (card as any)._taskCardOptions as Partial<TaskCardOptions> | undefined;
+				const parentVisibleProperties = getSubtaskVisibleProperties(card, plugin);
+				const isNoteWidget = card.classList.contains("task-card--note-widget");
+				const subtaskOptions = parentOptions
+					? {
+							...parentOptions,
+							hideStatusIndicator: parentOptions?.hideStatusIndicator,
+							groupedByStatus: parentOptions?.groupedByStatus,
+							noteWidget: parentOptions?.noteWidget || isNoteWidget,
+						}
+					: isNoteWidget
+						? { noteWidget: true }
+						: {};
 
 				// Build parent chain by traversing up the DOM hierarchy
 				const buildParentChain = (element: HTMLElement): string[] => {
@@ -2530,27 +2538,12 @@ export async function toggleSubtasks(
 						continue;
 					}
 
-					const parentOptions = (card as any)._taskCardOptions as Partial<TaskCardOptions> | undefined;
-					const parentVisibleProperties = getSubtaskVisibleProperties(card, plugin);
-					const subtaskOptions: Partial<TaskCardOptions> = {
-						layout: parentOptions?.layout,
-						targetDate: parentOptions?.targetDate,
-						hideStatusIndicator: parentOptions?.hideStatusIndicator,
-						groupedByStatus: parentOptions?.groupedByStatus,
-						noteWidget: parentOptions?.noteWidget,
-					};
-					const subtaskCard = createTaskCard(
-						subtask,
-						plugin,
-						parentVisibleProperties,
-						subtaskOptions
-					);
+					const subtaskCard = createTaskCard(subtask, plugin, parentVisibleProperties, subtaskOptions);
 
 					// Add subtask modifier class
 					subtaskCard.classList.add("task-card--subtask");
 					if (card.classList.contains("task-card--status-hidden")) {
 						subtaskCard.classList.add("task-card--status-hidden");
-						subtaskCard.querySelector(".task-card__status-dot")?.remove();
 					}
 
 					subtasksContainer.appendChild(subtaskCard);
