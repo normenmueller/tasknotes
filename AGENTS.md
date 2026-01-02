@@ -92,6 +92,10 @@ Examples (illustrative):
 - Order entries **newest first** (most recent feature at the top of the `Unreleased` section).
 - Commit the integration update with a `chore:` message (e.g., `chore: update integration changelog (<feature>)`).
 
+## Roadmap (Ordering)
+
+- In `./ROADMAP.md` under `## Status`, list completed items **newest first**.
+
 # Quality Attributes to Prioritize
 
 - Robustness
