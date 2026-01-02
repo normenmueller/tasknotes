@@ -89,6 +89,7 @@ Examples (illustrative):
 
 - In `./intg`, maintain a `CHANGELOG.md` that **aggregates** merged feature summaries.
 - After merging a feature into `intg`, copy its `PR.md` summary/changelog into `CHANGELOG.md`, then **remove `PR.md`** from `intg` to avoid conflicts.
+- Order entries **newest first** (most recent feature at the top of the `Unreleased` section).
 - Commit the integration update with a `chore:` message (e.g., `chore: update integration changelog (<feature>)`).
 
 # Quality Attributes to Prioritize
