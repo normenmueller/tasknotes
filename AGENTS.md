@@ -79,6 +79,7 @@ Examples (illustrative):
 - **Never** cherry-pick feature commits into `./intg`.
 - **Always** merge feature branches into `./intg` using `--no-ff` so branch labels remain visible in history.
 - `./intg` may be rebuilt from `upstream/main` when requested, then features are re-merged with `--no-ff` in the desired order.
+- Merge commits must use the message format: `Merge branch '<feature-branch>' of github.com:normenmueller/tasknotes into intg`.
 
 ### Merge Steps (when requested)
 
