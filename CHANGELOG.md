@@ -5,10 +5,10 @@
 ### feat-subtask-status-strip
 
 Summary:
-- Subtasks show a subtle status-colored stripe (instead of a full dot) when the status property is hidden.
+- Subtasks show a subtle status-colored stripe (instead of a full dot) only when grouped by status.
 
 Changes:
-- Mark task cards as status-hidden when the status property is not shown.
+- Mark task cards as status-hidden only when status is grouped (hideStatusIndicator).
 - Subtasks inherit that state and replace the status dot with a thin right-edge stripe.
 - Add styling for the subtask status stripe.
 
