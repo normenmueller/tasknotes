@@ -2,33 +2,22 @@
 
 ## Unreleased
 
-### feat-note-widget-status-strip
+### feat/ui-tweaks
 
 Summary:
-- Note widget cards render status as a subtle right-edge strip; status icons remain visible when configured.
+- Improves task card affordances and status visibility cues (subtask strip + note widget strip with icon override).
+- Subtasks inherit the parent card's visible properties for consistent metadata display.
 
 Changes:
-- Filter `status` from note widget visible properties to avoid showing dots by default.
-- Add a note-widget card mode that renders a status strip for project cards and subtasks.
-- Preserve status icons in the note widget (icons override the strip).
+- Add pointer cursor styling for all clickable task card elements (status, priority, indicators, chevron, blocking toggle, context menu, dates).
+- Ensure project chevrons are always visible on the right and ordered after other badge icons.
+- Mark project task cards with a dedicated class for chevron styling.
+- Show a status strip on subtasks only when grouped by status and status is hidden.
+- Hide status dots in the note widget and show a status strip instead (icon overrides strip).
+- Propagate visible properties from parent task cards to subtasks.
 
 Tests:
-- Not run (pending Obsidian verification).
-
-### feat-subtask-status-strip
-
-Summary:
-- Subtasks show a subtle status-colored stripe (instead of a full dot) only when grouped by status.
-
-Changes:
-- Mark task cards as status-hidden only when status is grouped (hideStatusIndicator).
-- Subtasks inherit parent visible properties (including custom fields).
-- Subtasks inherit that state and replace the status dot with a thin right-edge stripe.
-- Add styling for the subtask status stripe.
-- Subtask rendering now receives the parent view’s status visibility settings.
-
-Tests:
-- Not run (tested manually in Obsidian).
+- Not run (UI-only change).
 
 ### fix-task-prop-based-ident
 
@@ -43,19 +32,6 @@ Changes:
 
 Tests:
 - Not run (tested manually in Obsidian).
-
-### feat/ui-tweaks
-
-Summary:
-- Improves task card affordances with pointer cursors on clickable icons and a consistently visible project chevron.
-
-Changes:
-- Add pointer cursor styling for all clickable task card elements (status, priority, indicators, chevron, blocking toggle, context menu, dates).
-- Ensure project chevrons are always visible on the right and ordered after other badge icons.
-- Mark project task cards with a dedicated class for chevron styling.
-
-Tests:
-- Not run (UI-only change).
 
 ### fix-prio-label-mapping
 
