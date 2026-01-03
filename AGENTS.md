@@ -2,7 +2,8 @@
 
 - `./main` → Upstream baseline mirror (read-only working tree).
 - `./intg` → Integration working tree of the fork (default checkout: `intg` branch).
-- `./preq/{feat, fix, ...}-<feature>` → Feature worktrees for PRs.
+- `./drft/{feat, fix, ...}-<feature>` → Draft feature worktrees (not yet published).
+- `./preq/{feat, fix, ...}-<feature>` → Feature worktrees for published PRs.
 - `./trunk.bak` → READ ONLY! Old fork used for reference.
 
 # Project Overview
@@ -32,14 +33,15 @@
 
 ## Feature Branch Process
 
-Feature branches are created from `upstream/main` and worked on only via their matching worktree in `./preq/{feat, fix, ...}-<feature>`. Merge to `intg` only when explicitly requested and **always** via `--no-ff`.
+Feature branches are created from `upstream/main` and worked on only via their matching worktree in `./drft/{feat, fix, ...}-<feature>`. Move to `./preq/` only once the feature is ready to publish as a PR. Merge to `intg` only when explicitly requested and **always** via `--no-ff`.
 
 1) `git -C ./intg fetch upstream`
 2) `git -C ./intg branch {feat, fix, ...}-<feature> upstream/main`
-3) `git -C ./intg worktree add ./preq/{feat, fix, ...}-<feature> {feat, fix, ...}-<feature>`
-4) Work only inside `./preq/{feat, fix, ...}-<feature>`.
+3) `git -C ./intg worktree add ./drft/{feat, fix, ...}-<feature> {feat, fix, ...}-<feature>`
+4) Work only inside `./drft/{feat, fix, ...}-<feature>`.
 5) Run relevant tests.
-6) Open PR from the feature branch to upstream.
+6) When ready to publish, move the worktree: `git -C ./intg worktree move ./drft/{feat, fix, ...}-<feature> ./preq/{feat, fix, ...}-<feature>`
+7) Open PR from the feature branch to upstream.
 
 ## PR Documentation (Mandatory)
 
