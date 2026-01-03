@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### fix-project-card-refresh
+
+Summary:
+- Project cards now refresh immediately after subtask edits in the task edit modal.
+
+Changes:
+- Invalidate the project index after subtask edits in the task edit modal.
+- Emit a task-updated event for the parent task to refresh visible views.
+
+Tests:
+- Not run (manual testing only).
+
+## Released
+
 ### feat/ui-tweaks
 
 Summary:
